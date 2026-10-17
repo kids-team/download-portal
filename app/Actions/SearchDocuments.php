@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Models\DocumentSearchIndex;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
@@ -14,15 +15,85 @@ class SearchDocuments
     public function handle(array $filters): LengthAwarePaginator
     {
         $terms = $this->terms((string) ($filters['q'] ?? ''));
-        $indices = DocumentSearchIndex::query()->with('document')->whereHas('document', function ($query) use ($filters): void {
-            $query->publiclyAvailable()->when($filters['category'] ?? null, fn ($q, $slug) => $q->whereHas('category', fn ($q) => $q->where('slug', $slug)))->when($filters['audience'] ?? null, fn ($q, $slug) => $q->whereHas('audience', fn ($q) => $q->where('slug', $slug)))->when($filters['tag'] ?? null, fn ($q, $slug) => $q->whereHas('tags', fn ($q) => $q->where('slug', $slug)));
-        })->when($filters['bible_ref'] ?? null, fn ($q, $ref) => $q->where('bible_reference_text', 'like', '%'.$this->normalize($ref).'%'))->get();
-        $classical = $indices->filter(fn ($index) => collect($terms)->every(fn ($term) => str_contains($index->searchable_text, $term)))->map(fn ($index) => ['index' => $index, 'score' => $this->score($index, $terms)])->sort(fn ($left, $right) => $right['score'] <=> $left['score'] ?: $left['index']->document_id <=> $right['index']->document_id)->values();
+        $indices = $this->visibleIndices($filters);
+        $classical = $this->classicalResults($indices, $terms);
         $ranked = $this->fuse($classical, $indices, (string) ($filters['q'] ?? ''));
+
+        return $this->paginate($ranked, $filters);
+    }
+
+    /** @param array<string, mixed> $filters @return Collection<int, DocumentSearchIndex> */
+    private function visibleIndices(array $filters): Collection
+    {
+        return DocumentSearchIndex::query()
+            ->with('document')
+            ->whereHas('document', function (Builder $query) use ($filters): void {
+                $this->applyDocumentFilters($query, $filters);
+            })
+            ->when(
+                $filters['bible_ref'] ?? null,
+                fn (Builder $query, string $reference) => $query->where('bible_reference_text', 'like', '%'.$this->normalize($reference).'%'),
+            )
+            ->get();
+    }
+
+    /** @param array<string, mixed> $filters */
+    private function applyDocumentFilters(Builder $query, array $filters): void
+    {
+        $query->publiclyAvailable()
+            ->when(
+                $filters['category'] ?? null,
+                fn (Builder $query, string $slug) => $query->whereHas('category', fn (Builder $query) => $query->where('slug', $slug)),
+            )
+            ->when(
+                $filters['audience'] ?? null,
+                fn (Builder $query, string $slug) => $query->whereHas('audience', fn (Builder $query) => $query->where('slug', $slug)),
+            )
+            ->when(
+                $filters['tag'] ?? null,
+                fn (Builder $query, string $slug) => $query->whereHas('tags', fn (Builder $query) => $query->where('slug', $slug)),
+            );
+    }
+
+    /**
+     * @param  Collection<int, DocumentSearchIndex>  $indices
+     * @param  array<int, string>  $terms
+     * @return Collection<int, array{index: DocumentSearchIndex, score: int}>
+     */
+    private function classicalResults(Collection $indices, array $terms): Collection
+    {
+        return $indices
+            ->filter(fn (DocumentSearchIndex $index): bool => $this->matchesTerms($index, $terms))
+            ->map(fn (DocumentSearchIndex $index): array => [
+                'index' => $index,
+                'score' => $this->score($index, $terms),
+            ])
+            ->sort(fn (array $left, array $right): int => $right['score'] <=> $left['score'] ?: $left['index']->document_id <=> $right['index']->document_id)
+            ->values();
+    }
+
+    /** @param array<int, string> $terms */
+    private function matchesTerms(DocumentSearchIndex $index, array $terms): bool
+    {
+        return collect($terms)->every(fn (string $term): bool => str_contains($index->searchable_text, $term));
+    }
+
+    /**
+     * @param  Collection<int, array{index: DocumentSearchIndex, score: float|int}>  $ranked
+     * @param  array<string, mixed>  $filters
+     */
+    private function paginate(Collection $ranked, array $filters): LengthAwarePaginator
+    {
         $perPage = (int) ($filters['per_page'] ?? 24);
         $page = (int) ($filters['page'] ?? 1);
 
-        return new LengthAwarePaginator($ranked->forPage($page, $perPage)->values(), $ranked->count(), $perPage, $page, ['path' => request()->url(), 'query' => request()->query()]);
+        return new LengthAwarePaginator(
+            $ranked->forPage($page, $perPage)->values(),
+            $ranked->count(),
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()],
+        );
     }
 
     /** @return array<int,string> */
