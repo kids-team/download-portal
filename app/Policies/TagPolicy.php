@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Tag;
 use App\Models\User;
+use App\UserRole;
 
 class TagPolicy
 {
@@ -12,7 +13,7 @@ class TagPolicy
      */
     public function viewAny(User $user): bool
     {
-        return false;
+        return in_array($user->role, [UserRole::Admin, UserRole::Editor], true);
     }
 
     /**
@@ -20,7 +21,7 @@ class TagPolicy
      */
     public function view(User $user, Tag $tag): bool
     {
-        return false;
+        return $this->viewAny($user);
     }
 
     /**
@@ -28,7 +29,7 @@ class TagPolicy
      */
     public function create(User $user): bool
     {
-        return false;
+        return $user->role === UserRole::Admin;
     }
 
     /**
@@ -36,7 +37,7 @@ class TagPolicy
      */
     public function update(User $user, Tag $tag): bool
     {
-        return false;
+        return $user->role === UserRole::Admin;
     }
 
     /**
@@ -44,7 +45,7 @@ class TagPolicy
      */
     public function delete(User $user, Tag $tag): bool
     {
-        return false;
+        return $user->role === UserRole::Admin;
     }
 
     /**

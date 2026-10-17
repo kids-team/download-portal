@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Audience;
 use App\Models\User;
+use App\UserRole;
 
 class AudiencePolicy
 {
@@ -12,7 +13,7 @@ class AudiencePolicy
      */
     public function viewAny(User $user): bool
     {
-        return false;
+        return in_array($user->role, [UserRole::Admin, UserRole::Editor], true);
     }
 
     /**
@@ -20,7 +21,7 @@ class AudiencePolicy
      */
     public function view(User $user, Audience $audience): bool
     {
-        return false;
+        return $this->viewAny($user);
     }
 
     /**
@@ -28,7 +29,7 @@ class AudiencePolicy
      */
     public function create(User $user): bool
     {
-        return false;
+        return $user->role === UserRole::Admin;
     }
 
     /**
@@ -36,7 +37,7 @@ class AudiencePolicy
      */
     public function update(User $user, Audience $audience): bool
     {
-        return false;
+        return $user->role === UserRole::Admin;
     }
 
     /**
@@ -44,7 +45,7 @@ class AudiencePolicy
      */
     public function delete(User $user, Audience $audience): bool
     {
-        return false;
+        return $user->role === UserRole::Admin;
     }
 
     /**
