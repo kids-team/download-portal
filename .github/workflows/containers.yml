@@ -1,0 +1,31 @@
+name: Build containers
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  app:
+    uses: gollenia/github-actions/.github/workflows/container-build.yml@53565bffc3f405cab8a0b26fe1c7396c1b5c3833
+    with:
+      image: ghcr.io/kids-team/download-portal-app
+      dockerfile: docker/production/Dockerfile
+      target: app
+  web:
+    uses: gollenia/github-actions/.github/workflows/container-build.yml@53565bffc3f405cab8a0b26fe1c7396c1b5c3833
+    with:
+      image: ghcr.io/kids-team/download-portal-web
+      dockerfile: docker/production/Dockerfile
+      target: web
+  search:
+    uses: gollenia/github-actions/.github/workflows/container-build.yml@53565bffc3f405cab8a0b26fe1c7396c1b5c3833
+    with:
+      image: ghcr.io/kids-team/download-portal-search
+      context: ./semantic-search
+      dockerfile: ./semantic-search/Dockerfile

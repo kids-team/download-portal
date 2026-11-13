@@ -1,0 +1,100 @@
+services:
+  php:
+    image: ${APP_IMAGE:-ghcr.io/kids-team/download-portal-app:latest}
+    env_file: .env
+    environment: &application-environment
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY:?Set APP_KEY in .env}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_DATABASE: ${MYSQL_DATABASE:-downloadportal}
+      DB_USERNAME: ${MYSQL_USER:-downloadportal}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      SEMANTIC_SEARCH_URL: http://semantic-search:8080
+      BIBLE_API_URL: ${BIBLE_API_URL:?Set BIBLE_API_URL to the reachable Bible API}
+    volumes:
+      - uploads:/var/www/html/storage/app/public
+      - private-files:/var/www/html/storage/app/private
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  nginx:
+    image: ${WEB_IMAGE:-ghcr.io/kids-team/download-portal-web:latest}
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - uploads:/var/www/html/storage/app/public:ro
+    depends_on:
+      php:
+        condition: service_started
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-downloadportal}
+      MYSQL_USER: ${MYSQL_USER:-downloadportal}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    volumes:
+      - mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  semantic-search:
+    image: ${SEARCH_IMAGE:-ghcr.io/kids-team/download-portal-search:latest}
+    env_file: .env
+    environment:
+      SEMANTIC_SEARCH_TOKEN: ${SEMANTIC_SEARCH_TOKEN:?Set SEMANTIC_SEARCH_TOKEN in .env}
+    volumes:
+      - semantic-models:/models
+    restart: unless-stopped
+
+  migrate:
+    image: ${APP_IMAGE:-ghcr.io/kids-team/download-portal-app:latest}
+    env_file: .env
+    environment: *application-environment
+    command: ["php", "artisan", "migrate", "--force", "--no-interaction"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+
+  worker:
+    image: ${APP_IMAGE:-ghcr.io/kids-team/download-portal-app:latest}
+    env_file: .env
+    environment: *application-environment
+    command: ["php", "artisan", "queue:work", "database", "--tries=3", "--timeout=60"]
+    volumes:
+      - uploads:/var/www/html/storage/app/public
+      - private-files:/var/www/html/storage/app/private
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      semantic-search:
+        condition: service_started
+    restart: unless-stopped
+
+  scheduler:
+    image: ${APP_IMAGE:-ghcr.io/kids-team/download-portal-app:latest}
+    env_file: .env
+    environment: *application-environment
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  mysql:
+  uploads:
+  private-files:
+  semantic-models:
