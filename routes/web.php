@@ -13,3 +13,5 @@ Route::post('login', [AuthenticatedSessionController::class, 'store'])
 Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')
     ->name('logout');
+
+Route::view('admin/{path?}', 'admin')->where('path', '.*')->name('admin');

@@ -14,6 +14,13 @@ use Illuminate\Validation\Validator;
 
 class UpdateDocumentRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('status') && $this->input('status') !== DocumentStatus::Published->value) {
+            $this->merge(['published_at' => null]);
+        }
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */

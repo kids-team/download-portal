@@ -27,23 +27,18 @@ class DocumentTest extends TestCase
         $this->assertSame([$earlierChild->id, $laterChild->id], $children->pluck('id')->all());
     }
 
-    public function test_casts_lexical_editor_state_to_an_array(): void
+    public function test_casts_block_note_content_to_an_array(): void
     {
-        $editorState = [
-            'root' => [
-                'children' => [],
-                'direction' => null,
-                'format' => '',
-                'indent' => 0,
-                'type' => 'root',
-                'version' => 1,
-            ],
-        ];
-        $document = Document::factory()->create(['content' => $editorState]);
+        $content = [[
+            'type' => 'paragraph',
+            'content' => [['type' => 'text', 'text' => 'Gnade', 'styles' => []]],
+            'children' => [],
+        ]];
+        $document = Document::factory()->create(['content' => $content]);
 
         $document->refresh();
 
-        $this->assertSame($editorState, $document->content);
+        $this->assertSame($content, $document->content);
     }
 
     public function test_rejects_duplicate_slugs_at_the_root_level(): void

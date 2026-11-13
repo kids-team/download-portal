@@ -36,4 +36,14 @@ return [
     ],
     'semantic_search' => ['url' => env('SEMANTIC_SEARCH_URL', 'http://127.0.0.1:8081'), 'token' => env('SEMANTIC_SEARCH_TOKEN')],
 
+    'bible_api' => [
+        'url' => env('BIBLE_API_URL', 'http://127.0.0.1:8080'),
+    ],
+
+    'initial_admin' => [
+        'name' => env('INITIAL_ADMIN_NAME'),
+        'email' => env('INITIAL_ADMIN_EMAIL'),
+        'password' => env('INITIAL_ADMIN_PASSWORD'),
+    ],
+
 ];

@@ -18,12 +18,16 @@ class SemanticSearchTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_chunks_lexical_content_on_word_boundaries_and_keeps_mentions(): void
+    public function test_chunks_block_note_content_on_word_boundaries_and_keeps_link_text(): void
     {
-        $document = Document::factory()->make(['content' => ['root' => ['children' => [
-            ['type' => 'text', 'text' => implode(' ', array_fill(0, 190, 'Gnade'))],
-            ['type' => 'mention', 'label' => 'Paulus'],
-        ]]]]);
+        $document = Document::factory()->make(['content' => [[
+            'type' => 'paragraph',
+            'content' => [
+                ['type' => 'text', 'text' => implode(' ', array_fill(0, 190, 'Gnade')), 'styles' => []],
+                ['type' => 'link', 'href' => 'https://example.test/paulus', 'content' => [['type' => 'text', 'text' => 'Paulus', 'styles' => []]]],
+            ],
+            'children' => [],
+        ]]]);
 
         $chunks = app(ChunkDocumentForEmbeddings::class)->handle($document);
 
@@ -46,7 +50,11 @@ class SemanticSearchTest extends TestCase
     public function test_generates_persists_and_upserts_embeddings(): void
     {
         Queue::fake();
-        $document = Document::factory()->create(['content' => ['root' => ['children' => [['type' => 'text', 'text' => 'Gnade und Frieden']]]]]);
+        $document = Document::factory()->create(['content' => [[
+            'type' => 'paragraph',
+            'content' => [['type' => 'text', 'text' => 'Gnade und Frieden', 'styles' => []]],
+            'children' => [],
+        ]]]);
         Http::preventStrayRequests();
         Http::fake([
             'http://127.0.0.1:8081/internal/embed/passages' => Http::response([['id' => '0', 'vector' => [0.1, 0.2, 0.3]]]),
@@ -80,9 +88,17 @@ class SemanticSearchTest extends TestCase
     public function test_rrf_prefers_semantic_match_but_never_returns_non_public_documents(): void
     {
         Queue::fake();
-        $classical = Document::factory()->create(['title' => 'Gnade', 'content' => ['root' => ['children' => []]]]);
-        $semantic = Document::factory()->create(['title' => 'Anderer Titel', 'content' => ['root' => ['children' => [['type' => 'text', 'text' => 'Gnade']]]]]);
-        $draft = Document::factory()->create(['title' => 'Geheim', 'status' => DocumentStatus::Draft, 'content' => ['root' => ['children' => [['type' => 'text', 'text' => 'Gnade']]]]]);
+        $classical = Document::factory()->create(['title' => 'Gnade', 'content' => []]);
+        $semantic = Document::factory()->create(['title' => 'Anderer Titel', 'content' => [[
+            'type' => 'paragraph',
+            'content' => [['type' => 'text', 'text' => 'Gnade', 'styles' => []]],
+            'children' => [],
+        ]]]);
+        $draft = Document::factory()->create(['title' => 'Geheim', 'status' => DocumentStatus::Draft, 'content' => [[
+            'type' => 'paragraph',
+            'content' => [['type' => 'text', 'text' => 'Gnade', 'styles' => []]],
+            'children' => [],
+        ]]]);
         Http::preventStrayRequests();
         Http::fake(['http://127.0.0.1:8081/internal/search' => Http::response(['results' => [
             ['document_id' => $draft->id, 'chunk_index' => 0],

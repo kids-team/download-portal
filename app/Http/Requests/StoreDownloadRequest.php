@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Document;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreDownloadRequest extends FormRequest
 {
@@ -12,7 +14,9 @@ class StoreDownloadRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        $document = $this->route('document');
+
+        return $document instanceof Document && ($this->user()?->can('update', $document) ?? false);
     }
 
     /**
@@ -23,7 +27,11 @@ class StoreDownloadRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'file' => ['required', 'file', 'max:51200'],
+            'title' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:65535'],
+            'visibility' => ['sometimes', Rule::in(['public', 'private'])],
+            'is_published' => ['sometimes', 'boolean'],
         ];
     }
 }

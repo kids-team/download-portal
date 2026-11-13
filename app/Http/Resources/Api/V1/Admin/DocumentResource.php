@@ -37,6 +37,8 @@ class DocumentResource extends JsonResource
             'is_locked' => $document->is_locked,
             'published_at' => $document->published_at?->toAtomString(),
             'tag_ids' => $this->when($document->relationLoaded('tags'), fn (): array => $document->tags->modelKeys()),
+            'downloads' => DownloadResource::collection($this->whenLoaded('downloads')),
+            'bible_references' => BibleReferenceResource::collection($this->whenLoaded('bibleReferences')),
             'created_at' => $document->created_at->toAtomString(),
             'updated_at' => $document->updated_at->toAtomString(),
         ];

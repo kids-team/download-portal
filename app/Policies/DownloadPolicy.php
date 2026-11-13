@@ -4,6 +4,8 @@ namespace App\Policies;
 
 use App\Models\Download;
 use App\Models\User;
+use App\UserRole;
+use Illuminate\Auth\Access\Response;
 
 class DownloadPolicy
 {
@@ -12,7 +14,7 @@ class DownloadPolicy
      */
     public function viewAny(User $user): bool
     {
-        return false;
+        return $this->canManageDownloads($user);
     }
 
     /**
@@ -20,7 +22,7 @@ class DownloadPolicy
      */
     public function view(User $user, Download $download): bool
     {
-        return false;
+        return $user->can('view', $download->document);
     }
 
     /**
@@ -28,23 +30,27 @@ class DownloadPolicy
      */
     public function create(User $user): bool
     {
-        return false;
+        return $this->canManageDownloads($user);
     }
 
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, Download $download): bool
+    public function update(User $user, Download $download): Response
     {
-        return false;
+        return $user->can('update', $download->document)
+            ? Response::allow()
+            : Response::deny('Die Datei kann für dieses Dokument nicht bearbeitet werden.');
     }
 
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, Download $download): bool
+    public function delete(User $user, Download $download): Response
     {
-        return false;
+        return $user->can('update', $download->document)
+            ? Response::allow()
+            : Response::deny('Die Datei kann für dieses Dokument nicht gelöscht werden.');
     }
 
     /**
@@ -61,5 +67,10 @@ class DownloadPolicy
     public function forceDelete(User $user, Download $download): bool
     {
         return false;
+    }
+
+    private function canManageDownloads(User $user): bool
+    {
+        return in_array($user->role, [UserRole::Admin, UserRole::Editor], true);
     }
 }

@@ -97,7 +97,7 @@ class GenerateDocumentEmbeddings implements ShouldQueue
         if ($response->status() === 422) {
             $words = preg_split('/\s+/u', $chunk, -1, PREG_SPLIT_NO_EMPTY) ?: [];
             if (count($words) < 2) {
-                throw new \RuntimeException('A single lexical token exceeds the semantic model token limit.');
+                throw new \RuntimeException('A single token exceeds the semantic model token limit.');
             }
             $middle = intdiv(count($words), 2);
 

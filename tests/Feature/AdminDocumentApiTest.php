@@ -68,6 +68,7 @@ class AdminDocumentApiTest extends TestCase
         $response->assertCreated()
             ->assertJsonPath('data.slug', 'arbeitsblatt-schoepfung')
             ->assertJsonPath('data.status', DocumentStatus::Draft->value)
+            ->assertJsonPath('data.published_at', null)
             ->assertJsonPath('data.category_id', $category->id)
             ->assertJsonPath('data.tag_ids.0', $firstTag->id)
             ->assertJsonPath('data.tag_ids.1', $secondTag->id);
@@ -123,6 +124,70 @@ class AdminDocumentApiTest extends TestCase
         $this->assertDatabaseHas('documents', [
             'id' => $response->json('data.id'),
             'status' => DocumentStatus::Published->value,
+        ]);
+    }
+
+    public function test_admin_can_schedule_a_draft_document(): void
+    {
+        $document = Document::factory()->create([
+            'status' => DocumentStatus::Draft,
+            'published_at' => null,
+        ]);
+        $scheduledAt = now()->addDay()->startOfMinute();
+        Sanctum::actingAs(User::factory()->create(['role' => UserRole::Admin]));
+
+        $this->patchJson(route('v1.admin.documents.update', $document), [
+            'status' => DocumentStatus::Published->value,
+            'published_at' => $scheduledAt->toAtomString(),
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', DocumentStatus::Published->value)
+            ->assertJsonPath('data.published_at', $scheduledAt->toAtomString());
+
+        $scheduledDocument = $document->fresh();
+
+        $this->assertSame(DocumentStatus::Published, $scheduledDocument->status);
+        $this->assertSame($scheduledAt->toAtomString(), $scheduledDocument->published_at?->toAtomString());
+    }
+
+    public function test_admin_changes_to_a_published_document_are_immediately_public(): void
+    {
+        $document = Document::factory()->create([
+            'title' => 'Bestehender Titel',
+            'status' => DocumentStatus::Published,
+            'published_at' => now()->subMinute(),
+        ]);
+        Sanctum::actingAs(User::factory()->create(['role' => UserRole::Admin]));
+
+        $this->patchJson(route('v1.admin.documents.update', $document), ['title' => 'Aktualisierter Titel'])
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Aktualisierter Titel');
+
+        $this->getJson(route('v1.documents.show', $document))
+            ->assertOk()
+            ->assertJsonPath('name', 'Aktualisierter Titel');
+    }
+
+    public function test_resetting_a_planned_document_to_draft_clears_its_publication_date(): void
+    {
+        $document = Document::factory()->create([
+            'status' => DocumentStatus::Published,
+            'published_at' => now()->addDay(),
+        ]);
+        Sanctum::actingAs(User::factory()->create(['role' => UserRole::Admin]));
+
+        $this->patchJson(route('v1.admin.documents.update', $document), [
+            'status' => DocumentStatus::Draft->value,
+            'published_at' => now()->addWeek()->toAtomString(),
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.status', DocumentStatus::Draft->value)
+            ->assertJsonPath('data.published_at', null);
+
+        $this->assertDatabaseHas('documents', [
+            'id' => $document->id,
+            'status' => DocumentStatus::Draft->value,
+            'published_at' => null,
         ]);
     }
 

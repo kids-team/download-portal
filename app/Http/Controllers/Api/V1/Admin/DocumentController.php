@@ -47,7 +47,7 @@ class DocumentController extends Controller
     {
         abort_unless($request->user()?->can('view', $document), 403);
 
-        return new DocumentResource($document->load('tags'));
+        return new DocumentResource($document->load('tags', 'bibleReferences', 'downloads'));
     }
 
     public function update(UpdateDocumentRequest $request, Document $document): DocumentResource
@@ -59,7 +59,7 @@ class DocumentController extends Controller
                 $document->tags()->sync($request->validated('tag_ids'));
             }
 
-            return $document->load('tags');
+            return $document->load('tags', 'bibleReferences', 'downloads');
         });
         app(UpdateDocumentSearchIndex::class)->handle($document);
 

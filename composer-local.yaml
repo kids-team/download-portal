@@ -10,6 +10,7 @@ x-laravel-env: &laravel-env
   DB_USERNAME: downloadportal
   DB_PASSWORD: ${MYSQL_PASSWORD:-local-password}
   SEMANTIC_SEARCH_URL: http://semantic-search:8080
+  BIBLE_API_URL: http://bible-api:8080
 
 x-php-base: &php-base
   image: downloadportal-php:local
@@ -28,6 +29,7 @@ x-php-base: &php-base
 services:
   php:
     <<: *php-base
+    command: ["sh", "-c", "php artisan storage:link --force --no-interaction && php-fpm"]
     depends_on:
       mysql:
         condition: service_healthy
@@ -79,6 +81,25 @@ services:
       - application
     restart: unless-stopped
 
+  bible-api:
+    build:
+      context: ${BIBLE_API_CONTEXT:-../../projects/bibleapi}
+    volumes:
+      - ${BIBLE_API_CONTEXT:-../../projects/bibleapi}/db:/app/db
+    ports:
+      - "${BIBLE_API_PORT:-8080}:8080"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    networks:
+      - application
+    restart: unless-stopped
+
   migrate:
     <<: *php-base
     command: php artisan migrate --force --no-interaction
@@ -95,6 +116,8 @@ services:
         condition: service_completed_successfully
       semantic-search:
         condition: service_started
+      bible-api:
+        condition: service_healthy
     restart: unless-stopped
 
   scheduler:

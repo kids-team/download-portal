@@ -2,10 +2,13 @@
 
 namespace App\Actions;
 
+use App\DocumentContentExtractor;
 use App\Models\Document;
 
 class ChunkDocumentForEmbeddings
 {
+    public function __construct(private DocumentContentExtractor $documentContentExtractor) {}
+
     /**
      * The service verifies the actual tokenizer limit. This conservative word
      * boundary keeps normal passages well below the E5 512-token limit, while
@@ -15,7 +18,7 @@ class ChunkDocumentForEmbeddings
      */
     public function handle(Document $document): array
     {
-        $text = trim($this->extract($document->content));
+        $text = trim($this->documentContentExtractor->extract($document->content));
 
         if ($text === '') {
             return [];
@@ -29,41 +32,5 @@ class ChunkDocumentForEmbeddings
         }
 
         return $chunks;
-    }
-
-    private function extract(?array $node): string
-    {
-        $texts = [];
-        $this->visit($node['root'] ?? $node, $texts);
-
-        return implode(' ', $texts);
-    }
-
-    /** @param array<int, string> $texts */
-    private function visit(mixed $node, array &$texts): void
-    {
-        if (! is_array($node)) {
-            return;
-        }
-
-        $type = strtolower((string) ($node['type'] ?? ''));
-        if ($type === 'text' && is_string($node['text'] ?? null)) {
-            $texts[] = $node['text'];
-
-            return;
-        }
-
-        if (str_contains($type, 'mention')) {
-            foreach (['text', 'label', 'name', 'value'] as $field) {
-                if (is_string($node[$field] ?? null)) {
-                    $texts[] = $node[$field];
-                    break;
-                }
-            }
-        }
-
-        foreach ($node['children'] ?? [] as $child) {
-            $this->visit($child, $texts);
-        }
     }
 }

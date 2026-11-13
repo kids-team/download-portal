@@ -22,16 +22,7 @@ class DocumentFactory extends Factory
             'slug' => fake()->unique()->slug(),
             'position' => 0,
             'title' => fake()->sentence(4),
-            'content' => [
-                'root' => [
-                    'children' => [],
-                    'direction' => null,
-                    'format' => '',
-                    'indent' => 0,
-                    'type' => 'root',
-                    'version' => 1,
-                ],
-            ],
+            'content' => [],
             'summary' => fake()->sentence(),
             'label' => fake()->word(),
             'status' => DocumentStatus::Published,

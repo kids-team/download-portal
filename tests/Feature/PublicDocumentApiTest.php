@@ -21,7 +21,6 @@ class PublicDocumentApiTest extends TestCase
     public function test_returns_published_documents_as_a_schema_org_item_list(): void
     {
         $document = $this->createPublishedDocument();
-        Document::factory()->create(['status' => DocumentStatus::Archived]);
         Document::factory()->create(['status' => DocumentStatus::Draft]);
         Document::factory()->create(['published_at' => now()->addMinute()]);
 
@@ -61,13 +60,35 @@ class PublicDocumentApiTest extends TestCase
     public function test_returns_404_for_a_document_that_is_not_published(): void
     {
         $document = Document::factory()->create([
-            'status' => DocumentStatus::Review,
+            'status' => DocumentStatus::Draft,
             'published_at' => now()->subMinute(),
         ]);
 
         $response = $this->getJson(route('v1.documents.show', $document));
 
         $response->assertNotFound();
+    }
+
+    public function test_scheduled_document_becomes_public_at_its_publication_time(): void
+    {
+        $scheduledAt = now()->addHour()->startOfMinute();
+        $document = Document::factory()->create([
+            'status' => DocumentStatus::Published,
+            'published_at' => $scheduledAt,
+        ]);
+
+        $this->getJson(route('v1.documents.show', $document))
+            ->assertNotFound();
+
+        $this->travelTo($scheduledAt->addSecond());
+
+        try {
+            $this->getJson(route('v1.documents.show', $document))
+                ->assertOk()
+                ->assertJsonPath('name', $document->title);
+        } finally {
+            $this->travelBack();
+        }
     }
 
     public function test_delivers_a_published_download_and_records_it(): void
